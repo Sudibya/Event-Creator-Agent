@@ -1,0 +1,26 @@
+# Google ADK and AI dependencies
+google-genai
+google-adk
+vertexai
+
+# WebSocket server
+websockets
+
+# Environment variables
+python-dotenv
+
+# Async support
+asyncio
+
+# Twilio Phone Integration (for incoming calls)
+twilio>=8.0.0
+
+# HTTP server for Twilio webhooks
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+
+# Audio processing for Twilio Media Streams
+# Note: audioop (for μ-law conversion) is built-in Python - no installation needed
+numpy>=1.24.0  # Required for audio array operations
+scipy>=1.11.0  # Required for high-quality audio resampling (24kHz → 8kHz)
+
