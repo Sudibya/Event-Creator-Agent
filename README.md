@@ -171,12 +171,10 @@ The n8n workflow (`n8n-workflows/voice-scheduling-workflow.json`) performs:
 
 #### 5. Email Notifications
 
-**Success Email:**
+**Success Email** (see screenshot in Testing section above):
 - Meeting title, date, time, duration
 - Google Meet video link
 - Calendar link to view/edit event
-
-![Meeting Confirmed Email](docs/images/meeting-confirmed-email.png)
 
 **Failure Email:**
 - Error notification
@@ -303,22 +301,6 @@ livekit-app/
 | Calendar | Google Calendar API |
 | Email | Gmail API |
 | Frontend | HTML, JavaScript, Web Audio API |
-
----
-
-## Screenshots
-
-### Voice Agent Web Interface
-![Voice Scheduling Agent UI](docs/images/voice-agent-ui.png)
-*The main interface where users interact with the voice agent*
-
-### Successful Meeting Confirmation
-![Meeting Confirmed Email](docs/images/meeting-confirmed-email.png)
-*Email sent when a meeting is successfully scheduled with Google Meet link*
-
-### Error Handling
-![Meeting Failed Email](docs/images/meeting-failed-email.png)
-*Email sent when scheduling fails, with error details*
 
 ---
 
