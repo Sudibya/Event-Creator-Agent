@@ -153,10 +153,29 @@ async def handle_agent_events(
     ENHANCED with Bondly's audio deduplication and binary frames.
     """
     logger.info("Starting to listen for events from ADK agent...")
+    event_count = 0
     try:
         async for event in event_stream:
+            event_count += 1
             try:
-                logger.info(f"Received event from ADK: {type(event)}")
+                # Detailed event logging for debugging
+                logger.info(f"📩 [EVENT #{event_count}] Type: {type(event).__name__}")
+
+                # Log all event attributes for debugging
+                event_attrs = [attr for attr in dir(event) if not attr.startswith('_')]
+                significant_attrs = []
+                for attr in event_attrs:
+                    try:
+                        value = getattr(event, attr)
+                        if value is not None and not callable(value):
+                            # Only log non-None, non-callable attributes
+                            if attr in ['tool_call', 'content', 'actions', 'output_transcription', 'get_function_responses']:
+                                significant_attrs.append(f"{attr}={type(value).__name__}")
+                    except Exception:
+                        pass
+
+                if significant_attrs:
+                    logger.info(f"📩 [EVENT #{event_count}] Significant attrs: {', '.join(significant_attrs)}")
 
                 # Handle audio transcription (text version of audio output)
                 if hasattr(event, 'output_transcription') and event.output_transcription:
@@ -235,10 +254,22 @@ async def handle_agent_events(
                                 "data": part.text
                             }))
 
-                # Handle function calls
+                # Handle function calls - CRITICAL: This is where tool calls are initiated
                 if hasattr(event, 'tool_call') and event.tool_call:
-                    for function_call in event.tool_call.function_calls:
-                        logger.info(f"Function call: {function_call.name}")
+                    logger.info("=" * 60)
+                    logger.info("🔧 [WS-HANDLER] TOOL CALL EVENT RECEIVED")
+                    logger.info("=" * 60)
+                    logger.info(f"🔧 [WS-HANDLER] tool_call object: {event.tool_call}")
+                    logger.info(f"🔧 [WS-HANDLER] Number of function_calls: {len(event.tool_call.function_calls)}")
+
+                    for i, function_call in enumerate(event.tool_call.function_calls):
+                        logger.info(f"🔧 [WS-HANDLER] Function Call #{i+1}:")
+                        logger.info(f"    - name: {function_call.name}")
+                        logger.info(f"    - id: {getattr(function_call, 'id', 'N/A')}")
+                        logger.info(f"    - args: {function_call.args}")
+                        logger.info(f"    - args type: {type(function_call.args)}")
+
+                        # Notify client of function call
                         await websocket.send(json.dumps({
                             "type": "function_call",
                             "data": {
@@ -246,6 +277,9 @@ async def handle_agent_events(
                                 "args": function_call.args
                             }
                         }))
+                        logger.info(f"🔧 [WS-HANDLER] Sent function_call notification to client")
+
+                    logger.info("=" * 60)
 
                 # Handle function responses - DON'T forward them back
                 # ADK executes MCP tools automatically and includes results in events
@@ -253,11 +287,21 @@ async def handle_agent_events(
                 if hasattr(event, 'get_function_responses'):
                     function_responses = event.get_function_responses()
                     if function_responses:
-                        logger.info(f"Detected {len(function_responses)} tool responses (auto-executed by ADK)")
-                        for fr in function_responses:
-                            logger.info(f"  Tool: {fr.name}, response type: {type(fr.response)}")
+                        logger.info("=" * 60)
+                        logger.info("📤 [WS-HANDLER] TOOL RESPONSE EVENT RECEIVED")
+                        logger.info("=" * 60)
+                        logger.info(f"📤 [WS-HANDLER] Number of responses: {len(function_responses)}")
+
+                        for i, fr in enumerate(function_responses):
+                            logger.info(f"📤 [WS-HANDLER] Response #{i+1}:")
+                            logger.info(f"    - name: {fr.name}")
+                            logger.info(f"    - id: {getattr(fr, 'id', 'N/A')}")
+                            logger.info(f"    - response type: {type(fr.response)}")
+                            logger.info(f"    - response value: {fr.response}")
+
                         # Don't forward - ADK already handled it internally
-                        logger.info(f"Tool responses handled by ADK - agent should continue...")
+                        logger.info(f"📤 [WS-HANDLER] Tool responses handled by ADK - agent should continue...")
+                        logger.info("=" * 60)
 
                 # Check for turn completion in actions state delta
                 if hasattr(event, 'actions') and event.actions:
@@ -301,11 +345,27 @@ async def handle_agent_events(
                         }))
 
             except Exception as e:
-                logger.error(f"Error handling agent event: {e}")
-                logger.error(f"Full traceback:\n{traceback.format_exc()}")
+                logger.error(f"❌ [EVENT #{event_count}] Error handling agent event: {e}")
+                logger.error(f"❌ [EVENT #{event_count}] Exception type: {type(e).__name__}")
+                logger.error(f"❌ [EVENT #{event_count}] Full traceback:\n{traceback.format_exc()}")
 
     except Exception as e:
-        if "connection closed" not in str(e).lower():
-            logger.error(f"Error in event stream: {e}")
+        error_str = str(e).lower()
+        logger.error("=" * 60)
+        logger.error("❌ [EVENT-STREAM] EVENT STREAM ERROR")
+        logger.error("=" * 60)
+        logger.error(f"❌ [EVENT-STREAM] Exception: {e}")
+        logger.error(f"❌ [EVENT-STREAM] Exception type: {type(e).__name__}")
+        logger.error(f"❌ [EVENT-STREAM] Total events processed before error: {event_count}")
+
+        if "1011" in error_str:
+            logger.error("❌ [EVENT-STREAM] ERROR CODE 1011 DETECTED - Internal server error from Gemini Live API")
+            logger.error("❌ [EVENT-STREAM] This typically occurs during or after tool execution")
+        elif "connection closed" in error_str:
+            logger.info(f"📵 [EVENT-STREAM] Connection closed normally after {event_count} events")
+        else:
+            logger.error(f"❌ [EVENT-STREAM] Full traceback:\n{traceback.format_exc()}")
+
+        logger.error("=" * 60)
         raise
 
